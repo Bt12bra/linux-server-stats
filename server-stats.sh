@@ -1,64 +1,67 @@
 #!/bin/bash
 
-# Check if commands exist, use alternatives where needed
 echo "===== Server Stats ====="
+echo ""
 
-# 1. CPU Usage (works on most systems)
-if command -v mpstat &> /dev/null; then
-    cpu_usage=$(mpstat 1 1 | awk '$12 ~ /[0-9.]+/ {print 100 - $12"%"}')
-elif [ -f /proc/stat ]; then
-    cpu_usage=$(awk '/cpu / {usage=100-($5*100)/($2+$3+$4+$5+$6+$7+$8+$9+$10)} END {print usage"%"}' /proc/stat)
+# 1. CPU Usage (works everywhere)
+if [ -f /proc/stat ]; then
+    cpu_usage=$(awk '/cpu / {usage=($2+$4)*100/($2+$4+$5)} END {printf "%.1f%%", usage}' /proc/stat)
 else
-    cpu_usage="[Not Available]"
+    cpu_usage="[N/A]"
 fi
 echo "CPU Usage: $cpu_usage"
 
-# 2. Memory (works without `free`)
+# 2. Memory (works without 'free' command)
 if [ -f /proc/meminfo ]; then
     mem_total=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-    mem_free=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
-    mem_used=$((mem_total - mem_free))
-    echo "Memory: $((mem_used/1024))MB (Used) / $((mem_free/1024))MB (Free) | $((mem_used*100/mem_total))% Used"
+    mem_avail=$(awk '/MemAvailable/ {print $2}' /proc/meminfo 2>/dev/null || awk '/MemFree/ {print $2}' /proc/meminfo)
+    mem_used=$((mem_total - mem_avail))
+    echo "Memory: $((mem_used/1024))MB (Used) / $((mem_avail/1024))MB (Free) | $((mem_used*100/mem_total))% Used"
 else
-    echo "Memory: [Not Available]"
+    echo "Memory: [N/A]"
 fi
 
-# 3. Disk (uses `df` fallback)
-if command -v df &> /dev/null; then
-    echo "Disk: $(df -h / | awk 'NR==2{print $3 " (Used) / " $4 " (Free)"}')"
+# 3. Disk (simplified)
+if command -v df >/dev/null; then
+    echo "Disk: $(df -h / | awk 'NR==2{print $3" (Used) / "$4" (Free) | "$5" Used"}')"
 else
-    echo "Disk: [Not Available]"
+    echo "Disk: [N/A]"
 fi
 
-# 4. Top Processes (uses `ps` without --sort)
-echo -e "\nTop 5 CPU Processes:"
-ps -eo pid,user,%cpu,comm --no-headers | sort -k3 -nr | head -n 5 2>/dev/null || echo "[ps/sort not available]"
+# 4. Processes (universal approach)
+echo ""
+echo "Top Processes:"
+echo "---------------"
 
-echo -e "\nTop 5 Memory Processes:"
-ps -eo pid,user,%mem,comm --no-headers | sort -k3 -nr | head -n 5 2>/dev/null || echo "[ps/sort not available]"
+if [ -f /proc/loadavg ]; then
+    echo "Load Average: $(awk '{print $1", "$2", "$3}' /proc/loadavg)"
+else
+    echo "Load: [N/A]"
+fi
 
-# 5. Stretch Goals (with fallbacks)
-echo -e "\nAdditional Info:"
+# 5. System Info
+echo ""
+echo "System Info:"
+echo "------------"
+
 # Uptime
 if [ -f /proc/uptime ]; then
     uptime_sec=$(awk '{print int($1)}' /proc/uptime)
     echo "Uptime: $((uptime_sec/3600))h $((uptime_sec%3600/60))m"
 else
-    echo "Uptime: [Not Available]"
+    echo "Uptime: [N/A]"
 fi
 
-# OS Version
+# OS Info
 if [ -f /etc/os-release ]; then
     echo "OS: $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
 elif [ -f /etc/redhat-release ]; then
     echo "OS: $(cat /etc/redhat-release)"
 else
-    echo "OS: [Not Available]"
+    echo "OS: [N/A]"
 fi
-
-# Load Average
-if [ -f /proc/loadavg ]; then
-    echo "Load Avg: $(cat /proc/loadavg | awk '{print $1,$2,$3}')"
-else
-    echo "Load Avg: [Not Available]"
+if command -v ps >/dev/null; then
+    echo ""
+    echo "Running Processes:"
+    ps -eo pid,user,pcpu,pmem,comm --sort=-pcpu | head -n 6 2>/dev/null || echo "  [Process info unavailable]"
 fi
