@@ -13,6 +13,6 @@ A bash script to analyze CPU, memory, disk usage, and top processes on Linux ser
 ## Usage
 ```bash
 # Download and run
-curl -O https://raw.githubusercontent.com/your-username/linux-server-stats/main/server-stats.sh
+curl -O https://raw.githubusercontent.com/Bt12bra/linux-server-stats/main/server-stats.sh
 chmod +x server-stats.sh
 ./server-stats.sh
